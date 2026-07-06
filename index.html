@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Dylan's Fitness</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Fitness">
+<meta name="theme-color" content="#0A0C10">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%233B82F6'/%3E%3Ctext x='50' y='68' font-size='58' text-anchor='middle' fill='white'%3E💪%3C/text%3E%3C/svg%3E">
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
+html,body{background:#0A0C10;min-height:100vh}
+body{color:#E5E7EB;font-family:-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif;overscroll-behavior-y:none}
+#app{max-width:430px;margin:0 auto;min-height:100vh;padding-bottom:90px}
+button,input,select{font-family:inherit}
+::-webkit-scrollbar{display:none}
+.spinner{width:26px;height:26px;border:3px solid #1F2937;border-top-color:#3B82F6;border-radius:50%;animation:spin 0.7s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Bottom nav */
+#bottomnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#0E1117;border-top:1px solid #1F2937;display:flex;z-index:100;padding-bottom:env(safe-area-inset-bottom)}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0 8px;background:none;border:none;cursor:pointer;gap:3px;color:#4B5563;transition:color 0.15s}
+.nav-btn.active{color:#3B82F6}
+.nav-btn span:first-child{font-size:20px;line-height:1}
+.nav-btn span:last-child{font-size:9px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase}
+/* Ring progress */
+.ring{transform:rotate(-90deg)}
+/* Modal overlay */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.modal-sheet{background:#111827;border-radius:20px 20px 0 0;width:100%;max-width:430px;padding:20px;max-height:85vh;overflow-y:auto}
+.modal-handle{width:36px;height:4px;background:#374151;border-radius:2px;margin:0 auto 20px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="bottomnav"></div>
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────────
+const SK = "dylan-fitness-v1";
+const NAME = "Dylan";
+const CAL_GOAL = 3300;
+const PROTEIN_GOAL = 190;
+const WATER_GOAL = 3.5;
+const WEIGHT_GOAL = 80;
+
+const WORKOUT_SCHEDULE = {
+  1:"monday", 2:"tuesday", 4:"thursday", 5:"friday", 0:"sunday"
+};
+
+const WORKOUTS = {
+  monday:{label:"MON",title:"Upper Body",tag:"Strength",color:"#3B82F6",emoji:"💪",exercises:[
+    {name:"Barbell Bench Press",sets:4,reps:"5–8"},
+    {name:"Pull-ups / Assisted Pull-ups",sets:4,reps:"6–10"},
+    {name:"Overhead Press",sets:3,reps:"6–8"},
+    {name:"Barbell Rows",sets:3,reps:"8–10"},
+    {name:"Incline Dumbbell Press",sets:3,reps:"10–12"},
+    {name:"Lateral Raises",sets:3,reps:"12–15"},
+    {name:"EZ Bar Curls",sets:3,reps:"10–12"},
+    {name:"Tricep Pushdowns",sets:3,reps:"10–12"},
+  ]},
+  tuesday:{label:"TUE",title:"Lower Body",tag:"Strength",color:"#8B5CF6",emoji:"🦵",exercises:[
+    {name:"Back Squats",sets:4,reps:"5–8"},
+    {name:"Romanian Deadlifts",sets:4,reps:"8–10"},
+    {name:"Leg Press",sets:3,reps:"10–12"},
+    {name:"Walking Lunges",sets:3,reps:"12 each leg"},
+    {name:"Standing Calf Raises",sets:4,reps:"12–15"},
+    {name:"Hanging Leg Raises",sets:3,reps:"12"},
+    {name:"Plank",sets:3,reps:"45–60 sec"},
+  ]},
+  thursday:{label:"THU",title:"Upper Body",tag:"Hypertrophy",color:"#10B981",emoji:"🏋️",exercises:[
+    {name:"Incline Bench Press",sets:4,reps:"8–12"},
+    {name:"Lat Pulldowns",sets:4,reps:"10–12"},
+    {name:"Seated Cable Rows",sets:3,reps:"10–12"},
+    {name:"Dumbbell Shoulder Press",sets:3,reps:"10–12"},
+    {name:"Cable Flyes",sets:3,reps:"12–15"},
+    {name:"Face Pulls",sets:3,reps:"15"},
+    {name:"Hammer Curls",sets:3,reps:"12"},
+    {name:"Overhead Tricep Extensions",sets:3,reps:"12"},
+  ]},
+  friday:{label:"FRI",title:"Lower Body",tag:"Hypertrophy",color:"#F59E0B",emoji:"🔥",exercises:[
+    {name:"Front Squats / Hack Squats",sets:4,reps:"8–10"},
+    {name:"Hip Thrusts",sets:3,reps:"10–12"},
+    {name:"Leg Extensions",sets:3,reps:"12–15"},
+    {name:"Hamstring Curls",sets:3,reps:"12–15"},
+    {name:"Bulgarian Split Squats",sets:3,reps:"10 each leg"},
+    {name:"Seated Calf Raises",sets:4,reps:"15–20"},
+    {name:"Cable Crunches",sets:3,reps:"15"},
+  ]},
+  sunday:{label:"SUN",title:"Basketball",tag:"Conditioning",color:"#EF4444",emoji:"🏀",exercises:[
+    {name:"Conditioning & court time",sets:null,reps:null}
+  ],note:"Treat as your conditioning day. Eat a carb-rich meal 2hrs before. Stay hydrated throughout."},
+};
+
+const DAY_ORDER = [
+  {key:"monday",...WORKOUTS.monday},
+  {key:"tuesday",...WORKOUTS.tuesday},
+  {key:null,label:"WED",title:"Rest",tag:"Recovery",color:"#374151",emoji:"😴"},
+  {key:"thursday",...WORKOUTS.thursday},
+  {key:"friday",...WORKOUTS.friday},
+  {key:null,label:"SAT",title:"Rest",tag:"Recovery",color:"#374151",emoji:"😴"},
+  {key:"sunday",...WORKOUTS.sunday},
+];
+
+// ─── STATE ───────────────────────────────────────────────────
+function defaultState() {
+  return {
+    tab:"home",
+    activeWorkoutDay:"monday",
+    completed:{},
+    weights:{},
+    // Daily logs keyed by YYYY-MM-DD
+    dailyLogs:{},   // {calories:[], protein:[], water:[], weight:null, gymDone:false}
+    // Gym attendance: array of YYYY-MM-DD strings
+    gymDays:[],
+    nutritionQuery:"",
+    nutritionResults:null,
+    nutritionLoading:false,
+    savedMeals:[],
+    modal:null,  // {type:"workout-summary"|"log-food"|"log-water"|"log-weight"}
+  };
+}
+
+function loadState() {
+  try { const r=localStorage.getItem(SK); if(r) return {...defaultState(),...JSON.parse(r)}; } catch(e){}
+  return defaultState();
+}
+let S = loadState();
+
+function save() { try{localStorage.setItem(SK,JSON.stringify(S));}catch(e){} }
+function setState(patch) { S={...S,...patch}; save(); render(); }
+
+// ─── DATE HELPERS ─────────────────────────────────────────────
+function today() {
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function todayLog() {
+  const t=today();
+  if(!S.dailyLogs[t]) S.dailyLogs[t]={calories:[],protein:[],water:[],weight:null,gymDone:false};
+  return S.dailyLogs[t];
+}
+function getGreeting() {
+  const h=new Date().getHours();
+  if(h<12) return "Good Morning";
+  if(h<17) return "Good Afternoon";
+  return "Good Evening";
+}
+function getTodayWorkout() {
+  const dow=new Date().getDay();
+  const key=WORKOUT_SCHEDULE[dow];
+  return key ? WORKOUTS[key] : null;
+}
+function getTodayWorkoutKey() {
+  return WORKOUT_SCHEDULE[new Date().getDay()]||null;
+}
+function sumArr(arr) { return arr.reduce((a,b)=>a+b,0); }
+
+function calcStreak() {
+  if(!S.gymDays||S.gymDays.length===0) return 0;
+  const sorted=[...new Set(S.gymDays)].sort().reverse();
+  const t=today();
+  let streak=0;
+  let check=new Date();
+  // Allow today or yesterday as start
+  if(sorted[0]!==t) {
+    const yest=new Date(); yest.setDate(yest.getDate()-1);
+    const yStr=`${yest.getFullYear()}-${String(yest.getMonth()+1).padStart(2,'0')}-${String(yest.getDate()).padStart(2,'0')}`;
+    if(sorted[0]!==yStr) return 0;
+    check=yest;
+  }
+  for(let i=0;i<365;i++){
+    const ds=`${check.getFullYear()}-${String(check.getMonth()+1).padStart(2,'0')}-${String(check.getDate()).padStart(2,'0')}`;
+    if(sorted.includes(ds)){streak++;check.setDate(check.getDate()-1);}
+    else break;
+  }
+  return streak;
+}
+
+function totalGymDays() { return new Set(S.gymDays||[]).size; }
+
+function markGymDone() {
+  const t=today();
+  const gymDays=[...new Set([...(S.gymDays||[]),t])];
+  const dailyLogs={...S.dailyLogs};
+  if(!dailyLogs[t]) dailyLogs[t]={calories:[],protein:[],water:[],weight:null,gymDone:false};
+  dailyLogs[t]={...dailyLogs[t],gymDone:true};
+  setState({gymDays,dailyLogs});
+}
+
+// ─── EL HELPER ────────────────────────────────────────────────
+function el(tag,attrs={},children=[]) {
+  const e=document.createElement(tag);
+  for(const[k,v]of Object.entries(attrs)){
+    if(k==="style")Object.assign(e.style,v);
+    else if(k.startsWith("on"))e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==="text")e.textContent=v;
+    else if(k==="html")e.innerHTML=v;
+    else e.setAttribute(k,v);
+  }
+  (Array.isArray(children)?children:[children]).forEach(c=>{
+    if(c==null||c===false)return;
+    typeof c==="string"?e.appendChild(document.createTextNode(c)):e.appendChild(c);
+  });
+  return e;
+}
+
+function ring(val,max,color,size=56){
+  const r=22,circ=2*Math.PI*r,pct=Math.min(val/max,1),dash=pct*circ;
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("width",size);svg.setAttribute("height",size);svg.setAttribute("viewBox","0 0 56 56");
+  svg.setAttribute("class","ring");
+  const bg=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  bg.setAttribute("cx","28");bg.setAttribute("cy","28");bg.setAttribute("r",r);
+  bg.setAttribute("fill","none");bg.setAttribute("stroke","#1F2937");bg.setAttribute("stroke-width","5");
+  const fg=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  fg.setAttribute("cx","28");fg.setAttribute("cy","28");fg.setAttribute("r",r);
+  fg.setAttribute("fill","none");fg.setAttribute("stroke",color);fg.setAttribute("stroke-width","5");
+  fg.setAttribute("stroke-linecap","round");
+  fg.setAttribute("stroke-dasharray",`${dash} ${circ}`);
+  fg.style.transition="stroke-dasharray 0.4s ease";
+  svg.appendChild(bg);svg.appendChild(fg);
+  return svg;
+}
+
+function progressBar(val,max,color,height=6){
+  const pct=Math.min(val/max,1)*100;
+  return el("div",{style:{height:`${height}px`,background:"#1F2937",borderRadius:"4px",overflow:"hidden"}},[
+    el("div",{style:{height:"100%",width:`${pct}%`,background:color,borderRadius:"4px",transition:"width 0.4s ease"}}),
+  ]);
+}
+
+// ─── MODAL ────────────────────────────────────────────────────
+function showModal(type,extra={}) { setState({modal:{type,...extra}}); }
+function closeModal() { setState({modal:null}); }
+
+function renderModal() {
+  const existing=document.getElementById("modal-root");
+  if(existing)existing.remove();
+  if(!S.modal)return;
+  const overlay=el("div",{style:{position:"fixed",inset:"0",background:"rgba(0,0,0,0.75)",zIndex:"200",display:"flex",alignItems:"flex-end",justifyContent:"center"}});
+  overlay.id="modal-root";
+  overlay.addEventListener("click",(e)=>{if(e.target===overlay)closeModal();});
+  const sheet=el("div",{style:{background:"#111827",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:"430px",padding:"20px",maxHeight:"85vh",overflowY:"auto"}});
+  const handle=el("div",{style:{width:"36px",height:"4px",background:"#374151",borderRadius:"2px",margin:"0 auto 20px"}});
+  sheet.appendChild(handle);
+
+  const {type}=S.modal;
+
+  if(type==="workout-summary"){
+    const key=S.modal.workoutKey;
+    const w=WORKOUTS[key];
+    sheet.appendChild(el("div",{style:{fontSize:"11px",color:w.color,fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"4px"},text:w.tag}));
+    sheet.appendChild(el("div",{style:{fontSize:"22px",fontWeight:"800",color:"#F9FAFB",marginBottom:"4px"},text:`${w.emoji} ${w.title}`}));
+    sheet.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"20px"},text:`${w.exercises.filter(e=>e.sets).length} exercises · ${w.exercises.filter(e=>e.sets).reduce((a,e)=>a+e.sets,0)} total sets`}));
+    w.exercises.forEach(ex=>{
+      if(!ex.sets)return;
+      sheet.appendChild(el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1F2937"}},[
+        el("span",{style:{fontSize:"14px",color:"#E5E7EB"},text:ex.name}),
+        el("span",{style:{fontSize:"12px",color:"#6B7280"},text:`${ex.sets}×${ex.reps}`}),
+      ]));
+    });
+    sheet.appendChild(el("button",{
+      style:{marginTop:"20px",width:"100%",padding:"15px",background:w.color,border:"none",borderRadius:"14px",color:"#fff",fontSize:"15px",fontWeight:"700",cursor:"pointer"},
+      text:"Start Workout",
+      onClick:()=>{closeModal();setState({tab:"workout",activeWorkoutDay:key});},
+    }));
+  }
+
+  else if(type==="log-food"){
+    sheet.appendChild(el("div",{style:{fontSize:"18px",fontWeight:"700",color:"#F9FAFB",marginBottom:"4px"},text:"Log Food / Drink"}));
+    sheet.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"20px"},text:"Add a meal, snack or drink to today's log"}));
+    const nameInput=el("input",{type:"text",placeholder:"e.g. Chicken & rice, Protein shake...",style:{width:"100%",padding:"12px 14px",background:"#1F2937",border:"1px solid #374151",borderRadius:"12px",color:"#E5E7EB",fontSize:"14px",outline:"none",marginBottom:"12px"}});
+    const row=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"20px"}});
+    const calInput=el("input",{type:"number",placeholder:"Calories",style:{width:"100%",padding:"12px 14px",background:"#1F2937",border:"1px solid #374151",borderRadius:"12px",color:"#E5E7EB",fontSize:"14px",outline:"none"}});
+    const protInput=el("input",{type:"number",placeholder:"Protein (g)",style:{width:"100%",padding:"12px 14px",background:"#1F2937",border:"1px solid #374151",borderRadius:"12px",color:"#E5E7EB",fontSize:"14px",outline:"none"}});
+    row.appendChild(calInput);row.appendChild(protInput);
+    sheet.appendChild(nameInput);sheet.appendChild(row);
+    sheet.appendChild(el("button",{
+      style:{width:"100%",padding:"15px",background:"#3B82F6",border:"none",borderRadius:"14px",color:"#fff",fontSize:"15px",fontWeight:"700",cursor:"pointer"},
+      text:"Add to Log",
+      onClick:()=>{
+        const cal=parseFloat(calInput.value)||0;
+        const prot=parseFloat(protInput.value)||0;
+        const t=today();
+        const dailyLogs={...S.dailyLogs};
+        if(!dailyLogs[t])dailyLogs[t]={calories:[],protein:[],water:[],weight:null,gymDone:false};
+        dailyLogs[t]={...dailyLogs[t],calories:[...dailyLogs[t].calories,cal],protein:[...dailyLogs[t].protein,prot]};
+        setState({dailyLogs,modal:null});
+      },
+    }));
+  }
+
+  else if(type==="log-water"){
+    sheet.appendChild(el("div",{style:{fontSize:"18px",fontWeight:"700",color:"#F9FAFB",marginBottom:"4px"},text:"Log Water"}));
+    sheet.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"20px"},text:"How much did you drink?"}));
+    const quickBtns=el("div",{style:{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:"8px",marginBottom:"16px"}});
+    [0.25,0.33,0.5,0.75].forEach(amt=>{
+      quickBtns.appendChild(el("button",{
+        style:{padding:"12px 0",background:"#1F2937",border:"1px solid #374151",borderRadius:"10px",color:"#E5E7EB",fontSize:"13px",fontWeight:"600",cursor:"pointer"},
+        text:`${amt}L`,
+        onClick:()=>{
+          const t=today();const dailyLogs={...S.dailyLogs};
+          if(!dailyLogs[t])dailyLogs[t]={calories:[],protein:[],water:[],weight:null,gymDone:false};
+          dailyLogs[t]={...dailyLogs[t],water:[...dailyLogs[t].water,amt]};
+          setState({dailyLogs,modal:null});
+        },
+      }));
+    });
+    sheet.appendChild(quickBtns);
+    sheet.appendChild(el("div",{style:{fontSize:"12px",color:"#6B7280",textAlign:"center",marginBottom:"12px"},text:"or enter custom amount"}));
+    const custInput=el("input",{type:"number",placeholder:"Litres e.g. 0.4",style:{width:"100%",padding:"12px 14px",background:"#1F2937",border:"1px solid #374151",borderRadius:"12px",color:"#E5E7EB",fontSize:"14px",outline:"none",marginBottom:"12px"}});
+    sheet.appendChild(custInput);
+    sheet.appendChild(el("button",{
+      style:{width:"100%",padding:"15px",background:"#06B6D4",border:"none",borderRadius:"14px",color:"#fff",fontSize:"15px",fontWeight:"700",cursor:"pointer"},
+      text:"Add Water",
+      onClick:()=>{
+        const amt=parseFloat(custInput.value)||0;
+        if(amt<=0)return;
+        const t=today();const dailyLogs={...S.dailyLogs};
+        if(!dailyLogs[t])dailyLogs[t]={calories:[],protein:[],water:[],weight:null,gymDone:false};
+        dailyLogs[t]={...dailyLogs[t],water:[...dailyLogs[t].water,amt]};
+        setState({dailyLogs,modal:null});
+      },
+    }));
+  }
+
+  else if(type==="log-weight"){
+    sheet.appendChild(el("div",{style:{fontSize:"18px",fontWeight:"700",color:"#F9FAFB",marginBottom:"4px"},text:"Log Weight"}));
+    sheet.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"20px"},text:"Enter today's weight in kg"}));
+    const wInput=el("input",{type:"number",placeholder:"e.g. 72.5",style:{width:"100%",padding:"16px",background:"#1F2937",border:"1px solid #374151",borderRadius:"12px",color:"#E5E7EB",fontSize:"18px",outline:"none",textAlign:"center",marginBottom:"12px"}});
+    const log=todayLog(); if(log.weight) wInput.value=log.weight;
+    sheet.appendChild(wInput);
+    sheet.appendChild(el("button",{
+      style:{width:"100%",padding:"15px",background:"#10B981",border:"none",borderRadius:"14px",color:"#fff",fontSize:"15px",fontWeight:"700",cursor:"pointer"},
+      text:"Save Weight",
+      onClick:()=>{
+        const w=parseFloat(wInput.value)||null;
+        const t=today();const dailyLogs={...S.dailyLogs};
+        if(!dailyLogs[t])dailyLogs[t]={calories:[],protein:[],water:[],weight:null,gymDone:false};
+        dailyLogs[t]={...dailyLogs[t],weight:w};
+        setState({dailyLogs,modal:null});
+      },
+    }));
+  }
+
+  overlay.appendChild(sheet);
+  document.body.appendChild(overlay);
+}
+
+// ─── HOME / DASHBOARD ─────────────────────────────────────────
+function renderHome(root) {
+  const log=todayLog();
+  const todayCal=sumArr(log.calories);
+  const todayProt=sumArr(log.protein);
+  const todayWater=sumArr(log.water);
+  const streak=calcStreak();
+  const totalDays=totalGymDays();
+  const todayW=WORKOUTS[getTodayWorkoutKey()];
+  const lastWeight=getLastWeight();
+
+  const wrap=el("div",{style:{padding:"0"}});
+
+  // ── Greeting header
+  wrap.appendChild(el("div",{style:{padding:"28px 20px 20px",background:"linear-gradient(180deg,#0F1520 0%,#0A0C10 100%)"}},[
+    el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"4px"},text:new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})}),
+    el("div",{style:{fontSize:"26px",fontWeight:"800",color:"#F9FAFB",letterSpacing:"-0.03em"}},[ `${getGreeting()}, ${NAME} 👋`]),
+  ]));
+
+  // ── Today's workout card
+  if(todayW){
+    const wKey=getTodayWorkoutKey();
+    const totalSets=todayW.exercises.filter(e=>e.sets).reduce((a,e)=>a+e.sets,0);
+    let doneSets=0;
+    todayW.exercises.forEach((ex,exIdx)=>{
+      if(!ex.sets)return;
+      for(let s=0;s<ex.sets;s++){if(S.completed[`${wKey}-${exIdx}-${s}`])doneSets++;}
+    });
+    const pct=totalSets>0?Math.round(doneSets/totalSets*100):0;
+    const isGymDone=log.gymDone;
+
+    wrap.appendChild(el("div",{style:{margin:"0 16px 14px"},onClick:()=>showModal("workout-summary",{workoutKey:wKey})},[
+      el("div",{style:{background:`linear-gradient(135deg,${todayW.color}22,${todayW.color}11)`,border:`1px solid ${todayW.color}44`,borderRadius:"18px",padding:"18px 20px",cursor:"pointer"}},[
+        el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"12px"}},[
+          el("div",{},[
+            el("div",{style:{fontSize:"11px",color:todayW.color,fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"3px"},text:"Today's Workout"}),
+            el("div",{style:{fontSize:"20px",fontWeight:"800",color:"#F9FAFB"}},[ `${todayW.emoji} ${todayW.title}`]),
+            el("div",{style:{fontSize:"12px",color:"#6B7280",marginTop:"2px"},text:`${todayW.tag} · ${todayW.exercises.filter(e=>e.sets).length} exercises`}),
+          ]),
+          isGymDone
+            ? el("div",{style:{background:"#10B98122",border:"1px solid #10B98144",borderRadius:"10px",padding:"6px 10px",fontSize:"12px",color:"#10B981",fontWeight:"700"},text:"✓ Done"})
+            : el("div",{style:{background:todayW.color,borderRadius:"10px",padding:"6px 12px",fontSize:"12px",color:"#fff",fontWeight:"700"},text:"Start →"}),
+        ]),
+        pct>0&&[
+          el("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:"5px"}},[
+            el("span",{style:{fontSize:"11px",color:"#6B7280"},text:"Progress"}),
+            el("span",{style:{fontSize:"11px",color:todayW.color,fontWeight:"600"},text:`${pct}%`}),
+          ]),
+          progressBar(doneSets,totalSets,todayW.color,5),
+        ],
+      ]),
+    ]));
+  } else {
+    wrap.appendChild(el("div",{style:{margin:"0 16px 14px"}},[
+      el("div",{style:{background:"#111827",border:"1px solid #1F2937",borderRadius:"18px",padding:"18px 20px"}},[
+        el("div",{style:{fontSize:"11px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"3px"},text:"Today"}),
+        el("div",{style:{fontSize:"18px",fontWeight:"700",color:"#F9FAFB"},text:"😴 Rest Day"}),
+        el("div",{style:{fontSize:"12px",color:"#6B7280",marginTop:"2px"},text:"Recovery is part of the plan"}),
+      ]),
+    ]));
+  }
+
+  // ── Nutrition row
+  wrap.appendChild(el("div",{style:{padding:"0 16px",marginBottom:"14px"}},[
+    el("div",{style:{fontSize:"11px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"},text:"Today's Nutrition"}),
+    el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"10px"}},[
+      nutritionCard("🔥","Calories",todayCal,CAL_GOAL,"kcal","#F59E0B",()=>showModal("log-food")),
+      nutritionCard("🥩","Protein",todayProt,PROTEIN_GOAL,"g","#EF4444",()=>showModal("log-food")),
+      nutritionCard("💧","Water",todayWater,WATER_GOAL,"L","#06B6D4",()=>showModal("log-water")),
+    ]),
+  ]));
+
+  // ── Stats row
+  wrap.appendChild(el("div",{style:{padding:"0 16px",marginBottom:"14px"}},[
+    el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px"}},[
+      statCard("⚖️","Current Weight",lastWeight?`${lastWeight}kg`:"—","Tap to log",()=>showModal("log-weight"),"#10B981"),
+      statCard("🔥","Gym Streak",streak>0?`${streak} days`:"0 days",streak>=7?"Keep it up! 💪":streak>0?"Building momentum":"Start today!",null,"#F59E0B"),
+    ]),
+  ]));
+
+  // ── Gym days counter
+  wrap.appendChild(el("div",{style:{padding:"0 16px",marginBottom:"14px"}},[
+    el("div",{style:{background:"#111827",border:"1px solid #1F2937",borderRadius:"16px",padding:"16px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}},[
+      el("div",{},[
+        el("div",{style:{fontSize:"11px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"3px"},text:"Total Gym Sessions"}),
+        el("div",{style:{fontSize:"28px",fontWeight:"800",color:"#F9FAFB",letterSpacing:"-0.03em"},text:String(totalDays)}),
+        el("div",{style:{fontSize:"12px",color:"#6B7280"},text:"sessions logged"}),
+      ]),
+      log.gymDone
+        ? el("div",{style:{fontSize:"13px",color:"#10B981",fontWeight:"600"},text:"✓ Logged today"})
+        : el("button",{
+            style:{padding:"10px 16px",background:"#3B82F622",border:"1px solid #3B82F644",borderRadius:"12px",color:"#3B82F6",fontSize:"13px",fontWeight:"700",cursor:"pointer"},
+            text:"+ Log Session",
+            onClick:()=>markGymDone(),
+          }),
+    ]),
+  ]));
+
+  // ── Recent weight trend (last 7 entries)
+  const weightHistory=getWeightHistory(7);
+  if(weightHistory.length>=2){
+    wrap.appendChild(el("div",{style:{padding:"0 16px",marginBottom:"14px"}},[
+      el("div",{style:{background:"#111827",border:"1px solid #1F2937",borderRadius:"16px",padding:"16px 18px"}},[
+        el("div",{style:{fontSize:"11px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"12px"},text:"Weight Trend"}),
+        renderSparkline(weightHistory),
+      ]),
+    ]));
+  }
+
+  root.appendChild(wrap);
+}
+
+function nutritionCard(icon,label,val,goal,unit,color,onClick){
+  const pct=Math.min(val/goal,1);
+  return el("div",{style:{background:"#111827",border:"1px solid #1F2937",borderRadius:"14px",padding:"12px",cursor:"pointer"},onClick},[
+    el("div",{style:{fontSize:"16px",marginBottom:"6px"},text:icon}),
+    el("div",{style:{fontSize:"11px",color:"#6B7280",fontWeight:"600",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:"4px"},text:label}),
+    el("div",{style:{fontSize:"16px",fontWeight:"800",color:"#F9FAFB",letterSpacing:"-0.02em",marginBottom:"2px"},text:unit==="L"?val.toFixed(1):Math.round(val)}),
+    el("div",{style:{fontSize:"10px",color:"#4B5563",marginBottom:"8px"},text:`/ ${goal}${unit}`}),
+    progressBar(val,goal,color,4),
+  ]);
+}
+
+function statCard(icon,label,value,sub,onClick,color){
+  return el("div",{
+    style:{background:"#111827",border:"1px solid #1F2937",borderRadius:"14px",padding:"16px",cursor:onClick?"pointer":"default"},
+    ...(onClick?{onClick}:{}),
+  },[
+    el("div",{style:{fontSize:"22px",marginBottom:"8px"},text:icon}),
+    el("div",{style:{fontSize:"11px",color:"#6B7280",fontWeight:"600",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:"4px"},text:label}),
+    el("div",{style:{fontSize:"22px",fontWeight:"800",color:color,letterSpacing:"-0.03em",marginBottom:"2px"},text:value}),
+    el("div",{style:{fontSize:"11px",color:"#4B5563"},text:sub}),
+  ]);
+}
+
+function getLastWeight(){
+  const entries=Object.entries(S.dailyLogs).sort((a,b)=>b[0].localeCompare(a[0]));
+  for(const[,log]of entries){if(log.weight)return log.weight;}
+  return null;
+}
+
+function getWeightHistory(n){
+  return Object.entries(S.dailyLogs)
+    .filter(([,l])=>l.weight)
+    .sort((a,b)=>a[0].localeCompare(b[0]))
+    .slice(-n)
+    .map(([date,l])=>({date,w:l.weight}));
+}
+
+function renderSparkline(data){
+  const vals=data.map(d=>d.w);
+  const min=Math.min(...vals)-0.5,max=Math.max(...vals)+0.5;
+  const W=300,H=50,pad=8;
+  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("width","100%");svg.setAttribute("height",H);
+  const pts=data.map((d,i)=>{
+    const x=pad+(i/(data.length-1))*(W-pad*2);
+    const y=H-pad-((d.w-min)/(max-min))*(H-pad*2);
+    return `${x},${y}`;
+  });
+  const polyline=document.createElementNS("http://www.w3.org/2000/svg","polyline");
+  polyline.setAttribute("points",pts.join(" "));
+  polyline.setAttribute("fill","none");polyline.setAttribute("stroke","#10B981");polyline.setAttribute("stroke-width","2");polyline.setAttribute("stroke-linecap","round");polyline.setAttribute("stroke-linejoin","round");
+  svg.appendChild(polyline);
+  // dots
+  data.forEach((d,i)=>{
+    const[x,y]=pts[i].split(",");
+    const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+    c.setAttribute("cx",x);c.setAttribute("cy",y);c.setAttribute("r","3");c.setAttribute("fill","#10B981");
+    svg.appendChild(c);
+  });
+  const wrap=el("div",{});
+  wrap.appendChild(svg);
+  // labels
+  const lblRow=el("div",{style:{display:"flex",justifyContent:"space-between",marginTop:"4px"}});
+  data.forEach(d=>{
+    lblRow.appendChild(el("div",{style:{fontSize:"9px",color:"#4B5563",textAlign:"center"},text:d.date.slice(5)}));
+  });
+  wrap.appendChild(lblRow);
+  return wrap;
+}
+
+// ─── WORKOUT TAB ──────────────────────────────────────────────
+function renderWorkout(root){
+  const selector=el("div",{style:{display:"flex",gap:"8px",padding:"20px 16px 12px",overflowX:"auto"}});
+  DAY_ORDER.forEach(d=>{
+    const isActive=d.key===S.activeWorkoutDay;
+    const isRest=!d.key;
+    selector.appendChild(el("button",{
+      style:{flexShrink:"0",width:"52px",height:"64px",borderRadius:"12px",border:isActive?`2px solid ${d.color}`:"2px solid transparent",background:isActive?`${d.color}22`:isRest?"#0E1117":"#111827",cursor:isRest?"default":"pointer",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:"4px",opacity:isRest?"0.35":"1"},
+      onClick:()=>{if(!isRest)setState({activeWorkoutDay:d.key});},
+    },[
+      el("span",{style:{fontSize:"14px"},text:d.emoji||""}),
+      el("span",{style:{fontSize:"9px",fontWeight:"700",letterSpacing:"0.08em",color:isActive?d.color:"#6B7280"},text:d.label}),
+    ]));
+  });
+  root.appendChild(selector);
+
+  const key=S.activeWorkoutDay;
+  const w=WORKOUTS[key];
+  if(!w)return;
+
+  const totalSets=w.exercises.filter(e=>e.sets).reduce((a,e)=>a+e.sets,0);
+  let doneSets=0;
+  w.exercises.forEach((ex,exIdx)=>{if(!ex.sets)return;for(let s=0;s<ex.sets;s++){if(S.completed[`${key}-${exIdx}-${s}`])doneSets++;}});
+  const pct=totalSets>0?Math.round(doneSets/totalSets*100):0;
+
+  const hdr=el("div",{style:{padding:"0 16px 16px"}});
+  hdr.appendChild(el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center"}},[
+    el("div",{},[
+      el("div",{style:{fontSize:"11px",color:w.color,fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase"},text:w.tag}),
+      el("div",{style:{fontSize:"22px",fontWeight:"800",color:"#F9FAFB",marginTop:"2px"},text:`${w.emoji} ${w.title}`}),
+    ]),
+    totalSets>0?el("div",{style:{textAlign:"right"}},[
+      el("div",{style:{fontSize:"22px",fontWeight:"800",color:w.color},text:`${pct}%`}),
+      el("div",{style:{fontSize:"11px",color:"#6B7280"},text:`${doneSets}/${totalSets} sets`}),
+    ]):null,
+  ]));
+  if(totalSets>0)hdr.appendChild(el("div",{style:{marginTop:"10px"}},[ progressBar(doneSets,totalSets,w.color,5)]));
+  root.appendChild(hdr);
+
+  const exWrap=el("div",{style:{padding:"0 16px",display:"flex",flexDirection:"column",gap:"10px"}});
+  if(key==="sunday"){
+    exWrap.appendChild(el("div",{style:{background:"#111827",borderRadius:"16px",padding:"20px",borderLeft:`4px solid ${w.color}`}},[
+      el("div",{style:{fontSize:"16px",fontWeight:"700",marginBottom:"8px"},text:"🏀 Basketball Day"}),
+      el("div",{style:{fontSize:"14px",color:"#9CA3AF",lineHeight:"1.6"},text:w.note}),
+    ]));
+  } else {
+    w.exercises.forEach((ex,exIdx)=>{
+      const sArr=Array.from({length:ex.sets||0});
+      const allDone=sArr.length>0&&sArr.every((_,s)=>S.completed[`${key}-${exIdx}-${s}`]);
+      const wKey2=`${key}-${exIdx}`;
+      const sRow=el("div",{style:{display:"flex",gap:"6px",flexWrap:"wrap"}});
+      sArr.forEach((_,s)=>{
+        const done=!!S.completed[`${key}-${exIdx}-${s}`];
+        sRow.appendChild(el("button",{
+          style:{width:"38px",height:"38px",borderRadius:"9px",border:done?"none":"1.5px solid #2D3748",background:done?w.color:"#0E1117",color:done?"#fff":"#6B7280",fontSize:"11px",fontWeight:"700",cursor:"pointer"},
+          text:done?"✓":String(s+1),
+          onClick:()=>{
+            const k=`${key}-${exIdx}-${s}`;
+            const completed={...S.completed,[k]:!S.completed[k]};
+            setState({completed});
+          },
+        }));
+      });
+      const wInput=el("input",{type:"number",placeholder:"kg",style:{width:"58px",padding:"6px 8px",background:"#0E1117",border:"1px solid #2D3748",borderRadius:"8px",color:"#E5E7EB",fontSize:"13px",textAlign:"center",outline:"none"}});
+      wInput.value=S.weights[wKey2]||"";
+      wInput.addEventListener("input",(e)=>{S.weights[wKey2]=e.target.value;save();});
+      wInput.addEventListener("blur",()=>render());
+      exWrap.appendChild(el("div",{style:{background:allDone?`${w.color}0F`:"#111827",borderRadius:"14px",padding:"14px 16px",border:allDone?`1px solid ${w.color}33`:"1px solid #1F2937"}},[
+        el("div",{style:{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:"10px"}},[
+          el("div",{style:{flex:"1"}},[
+            el("div",{style:{fontSize:"14px",fontWeight:"600",color:allDone?w.color:"#F9FAFB"},text:(allDone?"✓ ":"")+ex.name}),
+            el("div",{style:{fontSize:"12px",color:"#6B7280",marginTop:"2px"},text:`${ex.sets} sets · ${ex.reps} reps`}),
+          ]),
+          wInput,
+        ]),
+        sRow,
+      ]));
+    });
+  }
+  root.appendChild(exWrap);
+
+  // Finish workout button
+  const log=todayLog();
+  if(key===getTodayWorkoutKey()&&!log.gymDone&&pct===100){
+    root.appendChild(el("div",{style:{padding:"16px 16px 0"}},[
+      el("button",{
+        style:{width:"100%",padding:"16px",background:"#10B981",border:"none",borderRadius:"14px",color:"#fff",fontSize:"16px",fontWeight:"800",cursor:"pointer"},
+        text:"🎉 Complete Workout",
+        onClick:()=>markGymDone(),
+      }),
+    ]));
+  }
+
+  root.appendChild(el("div",{style:{margin:"16px 16px 0",background:"#0E1117",borderRadius:"12px",padding:"14px 16px",border:"1px solid #1F2937"}},[
+    el("div",{style:{fontSize:"11px",color:"#4B5563",fontWeight:"700",letterSpacing:"0.1em",marginBottom:"5px"},text:"📈 PROGRESSION"}),
+    el("div",{style:{fontSize:"13px",color:"#6B7280",lineHeight:"1.6"},text:"Add 1 rep/week. Once you hit the top of every rep range, increase weight by 2.5–5kg (barbell) or 1–2kg per dumbbell."}),
+  ]));
+}
+
+// ─── NUTRITION TAB ────────────────────────────────────────────
+async function searchMeals(protein){
+  setState({nutritionLoading:true,nutritionResults:null});
+  try{
+    const prompt=`You are a sports nutritionist. The user is a 28-year-old male, 5'11", 72kg trying to build muscle. They want high-protein meal ideas using "${protein}" as the main protein source.
+Return ONLY valid JSON, no markdown, no explanation:
+{"breakfast":[{"name":"","protein":"","carb":"","veg":"","proteinG":"","calories":""},...],"lunch":[...],"dinner":[...]}
+Each array has exactly 5 items. Each meal must have a specific ${protein} preparation, a carb (rice/oats/bread/pasta/potato/quinoa), and a vegetable. Make meals varied and practical for muscle building. proteinG and calories are approximate numbers only (no units).`;
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1200,messages:[{role:"user",content:prompt}]})});
+    const data=await res.json();
+    const text=data.content.map(i=>i.text||"").join("");
+    const parsed=JSON.parse(text.replace(/```json|```/g,"").trim());
+    setState({nutritionResults:parsed,nutritionLoading:false});
+  }catch(e){setState({nutritionLoading:false,nutritionResults:{error:true}});}
+}
+
+function renderNutrition(root){
+  const wrap=el("div",{style:{padding:"20px 16px"}});
+  wrap.appendChild(el("div",{style:{fontSize:"20px",fontWeight:"800",color:"#F9FAFB",marginBottom:"4px"},text:"Nutrition"}));
+  wrap.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"16px"},text:"Search a protein to get meal ideas for the day"}));
+
+  const sWrap=el("div",{style:{display:"flex",gap:"8px",marginBottom:"20px"}});
+  const sInput=el("input",{type:"text",placeholder:"e.g. chicken breast, salmon, eggs...",style:{flex:"1",padding:"12px 14px",background:"#111827",border:"1px solid #1F2937",borderRadius:"12px",color:"#E5E7EB",fontSize:"14px",outline:"none"}});
+  sInput.value=S.nutritionQuery||"";
+  sInput.addEventListener("input",(e)=>{S.nutritionQuery=e.target.value;save();});
+  sInput.addEventListener("keydown",(e)=>{if(e.key==="Enter"&&S.nutritionQuery.trim())searchMeals(S.nutritionQuery.trim());});
+  sWrap.appendChild(sInput);
+  sWrap.appendChild(el("button",{
+    style:{padding:"12px 16px",background:"#3B82F6",border:"none",borderRadius:"12px",color:"#fff",fontSize:"14px",fontWeight:"700",cursor:"pointer"},
+    text:"Search",
+    onClick:()=>{if(S.nutritionQuery.trim())searchMeals(S.nutritionQuery.trim());},
+  }));
+  wrap.appendChild(sWrap);
+
+  if(S.nutritionLoading){
+    const lw=el("div",{style:{textAlign:"center",padding:"40px 0"}});
+    const sp=document.createElement("div");sp.className="spinner";
+    lw.appendChild(sp);
+    lw.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginTop:"12px"},text:"Finding meal ideas..."}));
+    wrap.appendChild(lw);
+  } else if(S.nutritionResults&&S.nutritionResults.error){
+    wrap.appendChild(el("div",{style:{background:"#111827",borderRadius:"12px",padding:"16px",textAlign:"center",color:"#EF4444",fontSize:"14px"},text:"Something went wrong. Please try again."}));
+  } else if(S.nutritionResults){
+    [{key:"breakfast",label:"Breakfast",icon:"🌅",color:"#F59E0B"},{key:"lunch",label:"Lunch",icon:"☀️",color:"#10B981"},{key:"dinner",label:"Dinner",icon:"🌙",color:"#3B82F6"}].forEach(mt=>{
+      const meals=S.nutritionResults[mt.key]||[];
+      const sec=el("div",{style:{marginBottom:"22px"}});
+      sec.appendChild(el("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}},[
+        el("span",{style:{fontSize:"18px"},text:mt.icon}),
+        el("span",{style:{fontSize:"15px",fontWeight:"700",color:"#F9FAFB"},text:mt.label}),
+      ]));
+      meals.forEach(meal=>{
+        const isSaved=S.savedMeals.some(m=>m.name===meal.name&&m.mealType===mt.key);
+        sec.appendChild(el("div",{style:{background:"#111827",borderRadius:"14px",padding:"14px 16px",marginBottom:"8px",border:"1px solid #1F2937"}},[
+          el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px"}},[
+            el("div",{style:{flex:"1",marginRight:"8px"}},[el("div",{style:{fontSize:"14px",fontWeight:"600",color:"#F9FAFB"},text:meal.name})]),
+            el("button",{style:{padding:"5px 10px",borderRadius:"8px",border:"none",background:isSaved?"#1F2937":"#3B82F622",color:isSaved?"#6B7280":mt.color,fontSize:"11px",fontWeight:"700",cursor:isSaved?"default":"pointer",whiteSpace:"nowrap"},text:isSaved?"✓ Saved":"+ Save",onClick:()=>{if(!isSaved){const savedMeals=[...S.savedMeals,{...meal,mealType:mt.key,mealLabel:mt.label,icon:mt.icon,color:mt.color,savedAt:Date.now()}];setState({savedMeals});}}}),
+          ]),
+          el("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},[
+            el("div",{style:{display:"flex",gap:"6px"}},["🥩 ",el("span",{style:{fontSize:"12px",color:"#D1D5DB"},text:meal.protein})]),
+            el("div",{style:{display:"flex",gap:"6px"}},["🌾 ",el("span",{style:{fontSize:"12px",color:"#D1D5DB"},text:meal.carb})]),
+            el("div",{style:{display:"flex",gap:"6px"}},["🥦 ",el("span",{style:{fontSize:"12px",color:"#D1D5DB"},text:meal.veg})]),
+            el("div",{style:{display:"flex",gap:"10px",marginTop:"6px"}},[
+              el("span",{style:{fontSize:"11px",color:mt.color,fontWeight:"700"},text:`~${meal.proteinG}g protein`}),
+              el("span",{style:{fontSize:"11px",color:"#4B5563"},text:`~${meal.calories} kcal`}),
+            ]),
+          ]),
+        ]));
+      });
+      wrap.appendChild(sec);
+    });
+  } else {
+    wrap.appendChild(el("div",{style:{background:"#111827",borderRadius:"16px",padding:"32px 20px",textAlign:"center",border:"1px solid #1F2937"}},[
+      el("div",{style:{fontSize:"36px",marginBottom:"12px"},text:"🔍"}),
+      el("div",{style:{fontSize:"15px",fontWeight:"600",color:"#F9FAFB",marginBottom:"6px"},text:"Search any protein"}),
+      el("div",{style:{fontSize:"13px",color:"#6B7280",lineHeight:"1.6"},text:"Get 5 breakfast, lunch and dinner ideas — each with a protein, carb and veg."}),
+    ]));
+  }
+  root.appendChild(wrap);
+}
+
+// ─── SAVED MEALS ─────────────────────────────────────────────
+function renderSaved(root){
+  const wrap=el("div",{style:{padding:"20px 16px"}});
+  wrap.appendChild(el("div",{style:{fontSize:"20px",fontWeight:"800",color:"#F9FAFB",marginBottom:"4px"},text:"Saved Meals"}));
+  wrap.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"16px"},text:`${S.savedMeals.length} meal${S.savedMeals.length!==1?"s":""} saved`}));
+  if(S.savedMeals.length===0){
+    wrap.appendChild(el("div",{style:{background:"#111827",borderRadius:"16px",padding:"32px 20px",textAlign:"center",border:"1px solid #1F2937"}},[
+      el("div",{style:{fontSize:"36px",marginBottom:"12px"},text:"⭐"}),
+      el("div",{style:{fontSize:"15px",fontWeight:"600",color:"#F9FAFB",marginBottom:"6px"},text:"No saved meals yet"}),
+      el("div",{style:{fontSize:"13px",color:"#6B7280"},text:"Search for a protein in Nutrition and save meals you like."}),
+    ]));
+  } else {
+    const grouped={};
+    S.savedMeals.forEach((meal,idx)=>{
+      if(!grouped[meal.mealType])grouped[meal.mealType]={label:meal.mealLabel,icon:meal.icon,color:meal.color,meals:[]};
+      grouped[meal.mealType].meals.push({...meal,_idx:idx});
+    });
+    ["breakfast","lunch","dinner"].forEach(mt=>{
+      if(!grouped[mt])return;
+      const g=grouped[mt];
+      const sec=el("div",{style:{marginBottom:"22px"}});
+      sec.appendChild(el("div",{style:{display:"flex",alignItems:"center",gap:"8px",marginBottom:"10px"}},[
+        el("span",{style:{fontSize:"18px"},text:g.icon}),
+        el("span",{style:{fontSize:"15px",fontWeight:"700",color:"#F9FAFB"},text:g.label}),
+        el("span",{style:{fontSize:"11px",color:g.color,fontWeight:"700",background:`${g.color}22`,padding:"2px 8px",borderRadius:"20px"},text:g.meals.length}),
+      ]));
+      g.meals.forEach(meal=>{
+        sec.appendChild(el("div",{style:{background:"#111827",borderRadius:"14px",padding:"14px 16px",marginBottom:"8px",border:"1px solid #1F2937"}},[
+          el("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:"8px"}},[
+            el("div",{style:{flex:"1"}},[el("div",{style:{fontSize:"14px",fontWeight:"600",color:"#F9FAFB"},text:meal.name})]),
+            el("button",{style:{padding:"5px 10px",borderRadius:"8px",border:"none",background:"#EF444420",color:"#EF4444",fontSize:"11px",fontWeight:"700",cursor:"pointer"},text:"Remove",onClick:()=>{const savedMeals=S.savedMeals.filter((_,i)=>i!==meal._idx);setState({savedMeals});}}),
+          ]),
+          el("div",{style:{display:"flex",flexDirection:"column",gap:"4px"}},[
+            el("div",{style:{display:"flex",gap:"6px"}},["🥩 ",el("span",{style:{fontSize:"12px",color:"#D1D5DB"},text:meal.protein})]),
+            el("div",{style:{display:"flex",gap:"6px"}},["🌾 ",el("span",{style:{fontSize:"12px",color:"#D1D5DB"},text:meal.carb})]),
+            el("div",{style:{display:"flex",gap:"6px"}},["🥦 ",el("span",{style:{fontSize:"12px",color:"#D1D5DB"},text:meal.veg})]),
+            el("div",{style:{display:"flex",gap:"10px",marginTop:"6px"}},[
+              el("span",{style:{fontSize:"11px",color:g.color,fontWeight:"700"},text:`~${meal.proteinG}g protein`}),
+              el("span",{style:{fontSize:"11px",color:"#4B5563"},text:`~${meal.calories} kcal`}),
+            ]),
+          ]),
+        ]));
+      });
+      wrap.appendChild(sec);
+    });
+  }
+  root.appendChild(wrap);
+}
+
+// ─── MORE (recovery + goals) ──────────────────────────────────
+function renderMore(root){
+  const wrap=el("div",{style:{padding:"20px 16px"}});
+  wrap.appendChild(el("div",{style:{fontSize:"20px",fontWeight:"800",color:"#F9FAFB",marginBottom:"20px"},text:"More"}));
+
+  // Recovery
+  wrap.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"},text:"Daily Targets"}));
+  const tg=el("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px",marginBottom:"20px"}});
+  [{icon:"💧",label:"Hydration",value:"2.5–3.5 L/day"},{icon:"🥩",label:"Protein",value:"25–40g every 3–5hrs"},{icon:"😴",label:"Sleep",value:"7.5–9 hrs/night"},{icon:"🔄",label:"Deload",value:"Every 8–10 weeks"}].forEach(t=>{
+    tg.appendChild(el("div",{style:{background:"#111827",borderRadius:"14px",padding:"14px",border:"1px solid #1F2937"}},[
+      el("div",{style:{fontSize:"22px",marginBottom:"6px"},text:t.icon}),
+      el("div",{style:{fontSize:"10px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.08em",textTransform:"uppercase"},text:t.label}),
+      el("div",{style:{fontSize:"13px",fontWeight:"600",color:"#E5E7EB",marginTop:"3px"},text:t.value}),
+    ]));
+  });
+  wrap.appendChild(tg);
+
+  wrap.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"},text:"Supplements"}));
+  const sw=el("div",{style:{display:"flex",flexDirection:"column",gap:"8px",marginBottom:"20px"}});
+  [{name:"Creatine",dose:"5g daily"},{name:"Whey Protein",dose:"As needed"},{name:"Vitamin D",dose:"Daily (esp. UK)"},{name:"Fish Oil",dose:"If no oily fish"}].forEach(s=>{
+    sw.appendChild(el("div",{style:{background:"#111827",borderRadius:"12px",padding:"12px 16px",border:"1px solid #1F2937",display:"flex",justifyContent:"space-between",alignItems:"center"}},[
+      el("div",{style:{fontSize:"14px",fontWeight:"600",color:"#F9FAFB"},text:`✅ ${s.name}`}),
+      el("div",{style:{fontSize:"13px",color:"#6B7280"},text:s.dose}),
+    ]));
+  });
+  wrap.appendChild(sw);
+
+  // Goals
+  wrap.appendChild(el("div",{style:{fontSize:"13px",color:"#6B7280",fontWeight:"700",letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:"10px"},text:"12-Month Goal"}));
+  wrap.appendChild(el("div",{style:{background:"linear-gradient(135deg,#1D4ED815,#7C3AED15)",border:"1px solid #3B82F633",borderRadius:"16px",padding:"18px",marginBottom:"12px"}},[
+    el("div",{style:{fontSize:"13px",color:"#6B7280",marginBottom:"4px"},text:"Current → Goal"}),
+    el("div",{style:{fontSize:"26px",fontWeight:"800",letterSpacing:"-0.04em",color:"#F9FAFB"},text:"71–72 kg → 78–80 kg"}),
+    el("div",{style:{fontSize:"13px",color:"#4B5563",marginTop:"4px"},text:"~3,000 kcal/day with adequate protein"}),
+  ]));
+  [{icon:"🏋️",label:"Broader shoulders"},{icon:"💪",label:"Fuller chest & bigger arms"},{icon:"🔙",label:"Stronger back (makes waist look narrower)"},{icon:"🦵",label:"More muscular legs & glutes"},{icon:"🏀",label:"Better strength & basketball performance"}].forEach(g=>{
+    wrap.appendChild(el("div",{style:{display:"flex",alignItems:"center",gap:"12px",padding:"11px 0",borderBottom:"1px solid #111827"}},[
+      el("span",{style:{fontSize:"18px"},text:g.icon}),
+      el("span",{style:{fontSize:"14px",color:"#D1D5DB"},text:g.label}),
+    ]));
+  });
+
+  root.appendChild(wrap);
+}
+
+// ─── BOTTOM NAV ───────────────────────────────────────────────
+function renderNav(){
+  const nav=document.getElementById("bottomnav");
+  nav.innerHTML="";
+  const tabs=[
+    {id:"home",icon:"🏠",label:"Home"},
+    {id:"workout",icon:"🏋️",label:"Workout"},
+    {id:"nutrition",icon:"🥗",label:"Nutrition"},
+    {id:"saved",icon:"⭐",label:"Saved"},
+    {id:"more",icon:"⚙️",label:"More"},
+  ];
+  tabs.forEach(t=>{
+    const btn=el("button",{style:{flex:"1",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"10px 0 8px",background:"none",border:"none",cursor:"pointer",gap:"3px",color:S.tab===t.id?"#3B82F6":"#4B5563"},onClick:()=>setState({tab:t.id})},[
+      el("span",{style:{fontSize:"20px",lineHeight:"1"},text:t.icon}),
+      el("span",{style:{fontSize:"9px",fontWeight:"700",letterSpacing:"0.05em",textTransform:"uppercase"},text:t.label}),
+    ]);
+    nav.appendChild(btn);
+  });
+}
+
+// ─── MAIN RENDER ──────────────────────────────────────────────
+function render(){
+  const app=document.getElementById("app");
+  app.innerHTML="";
+  const root=el("div");
+
+  if(S.tab==="home") renderHome(root);
+  else if(S.tab==="workout") renderWorkout(root);
+  else if(S.tab==="nutrition") renderNutrition(root);
+  else if(S.tab==="saved") renderSaved(root);
+  else if(S.tab==="more") renderMore(root);
+
+  app.appendChild(root);
+  renderNav();
+  renderModal();
+}
+
+render();
+</script>
+</body>
+</html>
